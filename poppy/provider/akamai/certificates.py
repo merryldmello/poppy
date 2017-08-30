@@ -559,6 +559,7 @@ class CertificateController(base.CertificateBase):
                 })
 
     def delete_certificate(self, cert_obj):
+        import pdb; pdb.set_trace()
         if cert_obj.cert_type == 'sni':
             # get change id
             first_provider_cert_details = (
