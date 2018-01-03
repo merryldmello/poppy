@@ -13,14 +13,18 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+import OpenSSL
+import six
 import socket
 import ssl
 import sys
 
 from kazoo import client
+from ndg.httpsclient.subj_alt_name import SubjectAltName
 from OpenSSL import crypto
+from OpenSSL import SSL
 from oslo_log import log
-import six
+from pyasn1.codec.der import decoder as der_decoder
 
 LOG = log.getLogger(__name__)
 
@@ -122,14 +126,24 @@ def get_sans_by_host(remote_host):
 
 def _build_context():
     import _ssl
-    context = ssl.SSLContext(ssl.PROTOCOL_SSLv23)
-    context.options |= ssl.OP_NO_SSLv2
-    context.options |= ssl.OP_NO_SSLv3
-    context.options |= getattr(_ssl, "OP_NO_COMPRESSION", 0)
-    context.verify_mode = ssl.CERT_REQUIRED
-    context.check_hostname = True
-    context.load_default_certs(ssl.Purpose.SERVER_AUTH)
+    try:
+        context = ssl.SSLContext(ssl.PROTOCOL_SSLv23)
+        context.options |= ssl.OP_NO_SSLv2
+        context.options |= ssl.OP_NO_SSLv3
+        context.options |= getattr(_ssl, "OP_NO_COMPRESSION", 0)
+        context.verify_mode = ssl.CERT_REQUIRED
+        context.check_hostname = True
+        context.load_default_certs(ssl.Purpose.SERVER_AUTH)
+    except AttributeError:
+        context = None
+
     return context
+
+
+def pyopenssl_callback(conn, cert, errno, depth, ok):
+    if depth == 0 and (errno == 9 or errno == 10):
+        return False
+    return True
 
 
 def _get_cert_alternate(remote_host):
@@ -138,14 +152,51 @@ def _get_cert_alternate(remote_host):
     except AttributeError:
         context = _build_context()
 
-    conn = context.wrap_socket(socket.socket(socket.AF_INET),
-                               server_hostname=remote_host)
-    conn.connect((remote_host, 443))
-    cert = conn.getpeercert()
+    if context:
+        conn = context.wrap_socket(
+            socket.socket(socket.AF_INET),
+            server_hostname=remote_host
+        )
+        conn.connect((remote_host, 443))
+        cert = conn.getpeercert()
+    else:
+        context = SSL.Context(SSL.TLSv1_METHOD)
+        context.set_options(SSL.OP_NO_SSLv2)
+        context.set_options(SSL.OP_NO_SSLv3)
+        context.set_verify(
+            SSL.VERIFY_PEER | SSL.VERIFY_FAIL_IF_NO_PEER_CERT,
+            pyopenssl_callback
+        )
+        conn = SSL.Connection(context, socket.socket(socket.AF_INET))
+        conn.connect((remote_host, 443))
+        conn.set_connect_state()
+        conn.set_tlsext_host_name(remote_host)
+        conn.do_handshake()
+        cert = conn.get_peer_certificate()
 
     conn.close()
 
     return cert
+
+
+def get_subject_alternates(cert):
+    general_names = SubjectAltName()
+    subject_alternates = []
+
+    for items in range(cert.get_extension_count()):
+        ext = cert.get_extension(items)
+        if ext.get_short_name() == 'subjectAltName':
+            ext_dat = ext.get_data()
+            decoded_dat = der_decoder.decode(ext_dat, asn1Spec=general_names)
+
+            for name in decoded_dat:
+                if isinstance(name, SubjectAltName):
+                    for entry in range(len(name)):
+                        component = name.getComponentByPosition(entry)
+                        subject_alternates.append(
+                            str(component.getComponent())
+                        )
+    return subject_alternates
 
 
 def get_ssl_number_of_hosts_alternate(remote_host):
@@ -153,6 +204,8 @@ def get_ssl_number_of_hosts_alternate(remote_host):
 
     cert = _get_cert_alternate(remote_host)
 
+    if isinstance(cert, OpenSSL.crypto.X509):
+        return len(get_subject_alternates(cert))
     return len([
         san for record_type, san in cert['subjectAltName']
         if record_type == 'DNS'
@@ -164,6 +217,8 @@ def get_sans_by_host_alternate(remote_host):
 
     cert = _get_cert_alternate(remote_host)
 
+    if isinstance(cert, OpenSSL.crypto.X509):
+        return get_subject_alternates(cert)
     return [
         san for record_type, san in cert['subjectAltName']
         if record_type == 'DNS'

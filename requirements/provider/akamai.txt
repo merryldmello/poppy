@@ -1,2 +1,4 @@
 edgegrid-python==1.0.6
+ndg-httpsclient
+pyasn1
 pyOpenSSL

@@ -11,3 +11,5 @@ testrepository
 testtools
 beautifulsoup4
 hypothesis
+ndg-httpsclient
+pyasn1
