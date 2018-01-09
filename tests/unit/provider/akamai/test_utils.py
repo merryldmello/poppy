@@ -18,6 +18,7 @@ import ssl
 import mock
 
 from poppy.provider.akamai import utils
+from OpenSSL import crypto, SSL
 from tests.unit import base
 
 
@@ -34,10 +35,17 @@ class TestAkamaiUtils(base.TestCase):
         self.mock_ssl_crypto = ssl_crypto_patcher.start()
         self.addCleanup(ssl_crypto_patcher.stop)
 
-        context_patcher = mock.patch('ssl.SSLContext')
-        self.mock_ssl_context = context_patcher.start()
-        self.addCleanup(context_patcher.stop)
+        #context_patcher = mock.patch('ssl.SSLContext')
+        #self.mock_ssl_context = context_patcher.start()
+        #self.addCleanup(context_patcher.stop)
 
+        with mock.patch("OpenSSL.SSL.Connection") as mock_conn:
+            mock_conn.get_peer_certificate.return_value = {
+                'subjectAltName': ['secured1.sni1.altcdn.com']
+            }
+        
+
+        """
         self.mock_ssl_context.return_value.wrap_socket.return_value. \
             getpeercert.return_value = {
                 'issuer': (
@@ -61,15 +69,16 @@ class TestAkamaiUtils(base.TestCase):
                 'subjectAltName': (('DNS', '*.r_host'), ('DNS', 'r_host')),
                 'version': 3
             }
+        """
 
     def test_get_ssl_number_of_hosts_alternate(self):
         self.assertEqual(
-            2, utils.get_ssl_number_of_hosts_alternate('remote_host'))
+            2, utils.get_ssl_number_of_hosts_alternate('localhost'))
 
     def test_get_sans_by_host_alternate(self):
         self.assertEqual(
             ['*.r_host', 'r_host'],
-            utils.get_sans_by_host_alternate('remote_host')
+            utils.get_sans_by_host_alternate('localhost')
         )
 
     def test_get_ssl_positive(self):

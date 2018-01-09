@@ -147,33 +147,20 @@ def pyopenssl_callback(conn, cert, errno, depth, ok):
 
 
 def _get_cert_alternate(remote_host):
-    try:
-        context = ssl.create_default_context()
-    except AttributeError:
-        context = _build_context()
+    context = SSL.Context(SSL.TLSv1_METHOD)
+    context.set_options(SSL.OP_NO_SSLv2)
+    context.set_options(SSL.OP_NO_SSLv3)
+    context.set_verify(
+        SSL.VERIFY_PEER | SSL.VERIFY_FAIL_IF_NO_PEER_CERT,
+        pyopenssl_callback
+    )
 
-    if context:
-        conn = context.wrap_socket(
-            socket.socket(socket.AF_INET),
-            server_hostname=remote_host
-        )
-        conn.connect((remote_host, 443))
-        cert = conn.getpeercert()
-    else:
-        context = SSL.Context(SSL.TLSv1_METHOD)
-        context.set_options(SSL.OP_NO_SSLv2)
-        context.set_options(SSL.OP_NO_SSLv3)
-        context.set_verify(
-            SSL.VERIFY_PEER | SSL.VERIFY_FAIL_IF_NO_PEER_CERT,
-            pyopenssl_callback
-        )
-        conn = SSL.Connection(context, socket.socket(socket.AF_INET))
-        conn.connect((remote_host, 443))
-        conn.set_connect_state()
-        conn.set_tlsext_host_name(remote_host)
-        conn.do_handshake()
-        cert = conn.get_peer_certificate()
-
+    conn = SSL.Connection(context, socket.socket(socket.AF_INET))
+    conn.connect((remote_host, 443))
+    conn.set_connect_state()
+    conn.set_tlsext_host_name(remote_host)
+    conn.do_handshake()
+    cert = conn.get_peer_certificate()
     conn.close()
 
     return cert
@@ -204,12 +191,13 @@ def get_ssl_number_of_hosts_alternate(remote_host):
 
     cert = _get_cert_alternate(remote_host)
 
-    if isinstance(cert, OpenSSL.crypto.X509):
-        return len(get_subject_alternates(cert))
-    return len([
-        san for record_type, san in cert['subjectAltName']
-        if record_type == 'DNS'
-    ])
+    #if isinstance(cert, OpenSSL.crypto.X509):
+    #    return len(get_subject_alternates(cert))
+    #return len([
+    #    san for record_type, san in cert['subjectAltName']
+    #    if record_type == 'DNS'
+    #])
+    return len(get_subject_alternates(cert))
 
 
 def get_sans_by_host_alternate(remote_host):
@@ -217,12 +205,13 @@ def get_sans_by_host_alternate(remote_host):
 
     cert = _get_cert_alternate(remote_host)
 
-    if isinstance(cert, OpenSSL.crypto.X509):
-        return get_subject_alternates(cert)
-    return [
-        san for record_type, san in cert['subjectAltName']
-        if record_type == 'DNS'
-    ]
+    #if isinstance(cert, OpenSSL.crypto.X509):
+    #    return get_subject_alternates(cert)
+    #return [
+    #    san for record_type, san in cert['subjectAltName']
+    #    if record_type == 'DNS'
+    #]
+    return get_subject_alternates(cert)
 
 
 def connect_to_zookeeper_storage_backend(conf):
