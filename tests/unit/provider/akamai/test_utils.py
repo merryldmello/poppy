@@ -16,6 +16,7 @@
 import ssl
 
 import mock
+import socket
 
 from poppy.provider.akamai import utils
 from OpenSSL import crypto, SSL
@@ -39,11 +40,44 @@ class TestAkamaiUtils(base.TestCase):
         #self.mock_ssl_context = context_patcher.start()
         #self.addCleanup(context_patcher.stop)
 
-        with mock.patch("OpenSSL.SSL.Connection") as mock_conn:
-            mock_conn.get_peer_certificate.return_value = {
-                'subjectAltName': ['secured1.sni1.altcdn.com']
-            }
-        
+        #with mock.patch("OpenSSL.SSL.Connection") as mock_conn:
+        #    mock_conn.connect(('remote_host', 443))
+        #    mock_conn.get_peer_certificate.return_value = {
+        #        'subjectAltName': ['secured1.sni1.altcdn.com']
+        #    }
+
+        #with mock.patch("OpenSSL.SSL.Connection") as mock_context:
+            #mock_context.connect(('remote_host', 443)) 
+            #mock_context.side_effect = socket.socket.connect
+            #mock_context.connect.assert_called_with(('remote_host', 443))
+            #mock_context.assert_called_with(('127.0.0.1', 443))
+            #mock_context.connect(('remote_host', 443))
+
+        #with mock.patch("OpenSSL.SSL.Context") as mock_context:
+        #    mock_context.conn = mock_context.Connection(mock_context, socket.socket(socket.AF_INET))
+        #    #mock_context.conn.return_value = "OpenSSL.SSL.Connection"
+        #    mock_context.side_effect = socket.error
+
+        #with mock.patch("socket.socket.connect") as mock_conn:
+        #    mock_conn.assert_called_with(('remote_host', 443))
+
+        #with mock.patch("OpenSSL.SSL.Connection") as mock_conn:
+        #    mock_conn.getsockname.return_value = ('remote_host', 443)
+
+        conn_patch = mock.patch("OpenSSL.SSL.Connection")
+        self.mock_ssl_conn = conn_patch.start()
+        self.addCleanup(conn_patch.stop)
+
+        sub_alt = mock.patch("poppy.provider.akamai.utils.get_subject_alternates")
+        self.mock_sub_alt = sub_alt.start()
+        self.addCleanup(sub_alt.stop)
+
+        self.mock_sub_alt.return_value = ['secured1.sni1.altcdn.com']
+
+
+        #self.mock_ssl_conn.return_value.get_peer_certificate.return_value. \
+        #    get_subject_alternates.return_value= ['secured1.sni1.altcdn.com']
+
 
         """
         self.mock_ssl_context.return_value.wrap_socket.return_value. \
@@ -73,13 +107,14 @@ class TestAkamaiUtils(base.TestCase):
 
     def test_get_ssl_number_of_hosts_alternate(self):
         self.assertEqual(
-            2, utils.get_ssl_number_of_hosts_alternate('localhost'))
+            1, utils.get_ssl_number_of_hosts_alternate('remote_host'))
 
     def test_get_sans_by_host_alternate(self):
-        self.assertEqual(
-            ['*.r_host', 'r_host'],
-            utils.get_sans_by_host_alternate('localhost')
-        )
+        #self.assertEqual(
+        #    ['*.r_host', 'r_host'],
+        #    utils.get_sans_by_host_alternate('')
+        #)
+        self.assertEqual(['secured1.sni1.altcdn.com'], utils.get_sans_by_host_alternate('remote_host'))
 
     def test_get_ssl_positive(self):
         def get_cert(tuple, ssl_version):
