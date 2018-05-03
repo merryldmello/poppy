@@ -565,12 +565,62 @@ class CertificateController(base.CertificateBase):
                 )
 
                 if found is False:
+                    try:
+                        change_url = (
+                            cert_obj.cert_details["Akamai"]
+                            ["extra_info"]["change_url"]
+                        )
+                    except KeyError:
+                        return self.responder.ssl_certificate_deleted(
+                            cert_obj.domain_name,
+                            {
+                                'status': 'failed',
+                                'reason': (
+                                    'Domain does not exist on any certificate '
+                                )
+                            }
+                        )
+
+                    headers = {
+                        'Accept': (
+                            'application/vnd.akamai.cps.change-id.v1+'
+                            'json'
+                            )
+                        }
+
+                    change_id = change_url.split('/')[-1]
+                    enrollment_id = change_url.split('/')[-3]
+
+                    base_url = self.cps_api_base_url.format(
+                        enrollmentId=enrollment_id)
+                    change_url = '{0}/changes/{1}'.format(
+                        base_url, change_id)
+                    change_resp = self.cps_api_client.delete(
+                        change_url, headers=headers)
+
+                    if change_resp.ok:
+                        LOG.info(
+                            "Deleting domain {0} from certificate"
+                            .format(cert_obj.domain_name)
+                        )
+                        return self.responder.ssl_certificate_deleted(
+                            cert_obj.domain_name,
+                            {
+                                'status': 'deleted',
+                                'deleted_at': str(datetime.datetime.now()),
+                                'reason':
+                                    'Delete request for {0} succeeded.'
+                                    .format(cert_obj.domain_name)
+                            }
+                        )
+
                     return self.responder.ssl_certificate_deleted(
                         cert_obj.domain_name,
                         {
                             'status': 'failed',
                             'reason': (
-                                'Domain does not exist on any certificate '
+                                'Delete pending change for {0} failed.'
+                                .format(cert_obj.domain_name)
                             )
                         }
                     )
@@ -596,18 +646,6 @@ class CertificateController(base.CertificateBase):
                             enrollment_id, resp.text))
 
                 resp_json = json.loads(resp.text)
-                # check enrollment does not have any pending changes
-                if len(resp_json['pendingChanges']) > 0:
-                    LOG.info("{0} has pending changes, skipping...".format(
-                        found_cert))
-                    return self.responder.ssl_certificate_deleted(
-                        cert_obj.domain_name,
-                        {
-                            'status': 'failed due to pending changes',
-                            'reason': 'Delete request for {0} failed'
-                                .format(cert_obj.domain_name)
-                        }
-                    )
 
                 # remove domain name from sans
                 resp_json['csr']['sans'].remove(cert_obj.domain_name)

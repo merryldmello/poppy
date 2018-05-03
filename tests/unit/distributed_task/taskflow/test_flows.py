@@ -1054,6 +1054,17 @@ class TestFlowRuns(base.TestCase):
 
     def test_delete_ssl_certificate_normal(self):
         providers = ['cdn_provider']
+        cert_details = {
+            "Akamai": {
+                "cert_domain": "secured.sni.altcdn.com",
+                "extra_info": {
+                    "status": "create_in_progress",
+                    "change_url": "/cps/v2/enrollments/12345/changes/3159",
+                    "created_at": "2018-05-02 16:11:55.671460",
+                    "sni_cert": "secured.sni.altcdn.com"
+                }
+            }
+        }
         cert_obj = ssl_certificate.SSLCertificate(
             'cdn',
             'mytestsite.com',
@@ -1066,7 +1077,8 @@ class TestFlowRuns(base.TestCase):
             'cert_obj': json.dumps(cert_obj.to_dict()),
             'providers_list': json.dumps(providers),
             'flavor_id': "premium",
-            'context_dict': context_utils.RequestContext().to_dict()
+            'context_dict': context_utils.RequestContext().to_dict(),
+            'cert_details': cert_details
         }
 
         (

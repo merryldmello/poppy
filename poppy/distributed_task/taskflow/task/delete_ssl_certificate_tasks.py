@@ -30,11 +30,12 @@ class DeleteProviderSSLCertificateTask(task.Task):
     default_provides = "responders"
 
     def execute(self, providers_list, domain_name, cert_type,
-                project_id, flavor_id):
+                project_id, flavor_id, cert_details):
         service_controller = memoized_controllers.task_controllers('poppy')
 
         cert_obj = ssl_certificate.SSLCertificate(flavor_id, domain_name,
-                                                  cert_type, project_id)
+                                                  cert_type, project_id,
+                                                  cert_details)
 
         responders = []
         # try to delete all certificates from each provider
@@ -44,7 +45,7 @@ class DeleteProviderSSLCertificateTask(task.Task):
                     cert_obj.to_dict(), provider))
             responder = service_controller.provider_wrapper.delete_certificate(
                 service_controller._driver.providers[provider.lower()],
-                cert_obj,
+                cert_obj
             )
             responders.append(responder)
 
