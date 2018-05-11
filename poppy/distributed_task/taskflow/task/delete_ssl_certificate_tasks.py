@@ -12,6 +12,7 @@
 # implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
+import json
 
 from oslo_config import cfg
 from oslo_log import log
@@ -29,9 +30,15 @@ conf(project='poppy', prog='poppy', args=[])
 class DeleteProviderSSLCertificateTask(task.Task):
     default_provides = "responders"
 
-    def execute(self, providers_list, domain_name, cert_type,
-                project_id, flavor_id, cert_details):
+    def execute(self, providers_list_json, domain_name, cert_type,
+                project_id, cert_obj_json):
         service_controller = memoized_controllers.task_controllers('poppy')
+
+        cert_obj_json = json.loads(cert_obj_json)
+        providers_list = json.loads(providers_list_json)
+
+        flavor_id = cert_obj_json['flavor_id']
+        cert_details = cert_obj_json['cert_details']
 
         cert_obj = ssl_certificate.SSLCertificate(flavor_id, domain_name,
                                                   cert_type, project_id,

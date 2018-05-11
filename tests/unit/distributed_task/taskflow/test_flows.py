@@ -1074,8 +1074,8 @@ class TestFlowRuns(base.TestCase):
             'cert_type': "san",
             'project_id': json.dumps(str(uuid.uuid4())),
             'domain_name': "mytestsite.com",
-            'cert_obj': json.dumps(cert_obj.to_dict()),
-            'providers_list': json.dumps(providers),
+            'cert_obj_json': json.dumps(cert_obj.to_dict()),
+            'providers_list_json': json.dumps(providers),
             'flavor_id': "premium",
             'context_dict': context_utils.RequestContext().to_dict(),
             'cert_details': cert_details
