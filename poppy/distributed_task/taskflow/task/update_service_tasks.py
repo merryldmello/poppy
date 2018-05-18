@@ -357,27 +357,33 @@ class DeleteCertsForRemovedDomains(task.Task):
         service_controller, dns = \
             memoized_controllers.task_controllers('poppy', 'dns')
 
+        storage_cert_obj = service_controller.ssl_certificate_storage
+
         # get old domains
         service_old_json = json.loads(service_old)
         service_old = service.load_from_json(service_old_json)
         old_domains = set([
-            domain.domain for domain in service_old.domains
+            (domain.domain, domain.certificate)
+            for domain in service_old.domains
             if domain.protocol == 'https'
             and
             domain.certificate in ['san', 'sni']
         ])
+
+        providers_list = service_old.provider_details.keys()
 
         # get new domains
         service_new_json = json.loads(service_obj)
         service_new = service.load_from_json(service_new_json)
         new_domains = set([
-            domain.domain for domain in service_new.domains
+            (domain.domain, domain.certificate)
+            for domain in service_new.domains
             if domain.protocol == 'https'
             and
             domain.certificate in ['san', 'sni']
         ])
 
-        removed_domains = old_domains.difference(new_domains)
+        removed_domains = list(old_domains.difference(new_domains))
 
         LOG.info("update_service Old domains: {0}".format(old_domains))
         LOG.info("update_service New domains: {0}".format(new_domains))
@@ -385,15 +391,21 @@ class DeleteCertsForRemovedDomains(task.Task):
 
         kwargs = {
             'project_id': project_id,
-            'cert_type': 'san',
             'context_dict': context_utils.get_current().to_dict()
         }
 
         for domain in removed_domains:
-            kwargs['domain_name'] = domain
+            cert_obj = storage_cert_obj.get_certs_by_domain(
+                    domain[0],
+                    cert_type=domain[1]
+                )
+            kwargs['domain_name'] = domain[0]
+            kwargs['cert_type'] = domain[1]
+            kwargs['providers_list_json'] = json.dumps(providers_list)
+            kwargs["cert_obj_json"] = json.dumps(cert_obj.to_dict())
             LOG.info(
                 "update_service removing certificate "
-                "for deleted domain {0}".format(domain)
+                "for deleted domain {0}".format(domain[0])
             )
             service_controller.distributed_task_controller.submit_task(
                 delete_ssl_certificate.delete_ssl_certificate,

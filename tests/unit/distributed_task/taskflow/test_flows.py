@@ -549,6 +549,9 @@ class TestFlowRuns(base.TestCase):
             service_mock = mock.Mock()
             type(service_mock).domains = []
             storage_controller.get_service.return_value = service_mock
+            storage_controller.get_service.return_value.provider_details = {
+                'akamai': []
+            }
             dns_controller.delete = mock.Mock()
             dns_controller.delete._mock_return_value = {
                 'cdn_provider': {

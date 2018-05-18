@@ -37,8 +37,8 @@ class DeleteProviderSSLCertificateTask(task.Task):
         cert_obj_json = json.loads(cert_obj_json)
         providers_list = json.loads(providers_list_json)
 
-        flavor_id = cert_obj_json['flavor_id']
-        cert_details = cert_obj_json['cert_details']
+        flavor_id = cert_obj_json.get('flavor_id')
+        cert_details = cert_obj_json.get('cert_details')
 
         cert_obj = ssl_certificate.SSLCertificate(flavor_id, domain_name,
                                                   cert_type, project_id,
@@ -46,16 +46,18 @@ class DeleteProviderSSLCertificateTask(task.Task):
 
         responders = []
         # try to delete all certificates from each provider
-        for provider in providers_list:
-            LOG.info(
-                'Starting to delete ssl certificate: {0} from {1}.'.format(
-                    cert_obj.to_dict(), provider))
-            responder = service_controller.provider_wrapper.delete_certificate(
-                service_controller._driver.providers[provider.lower()],
-                cert_obj
-            )
-            responders.append(responder)
-
+        if cert_obj_json:
+            for provider in providers_list:
+                LOG.info(
+                    'Starting to delete ssl certificate: {0} from {1}.'.format(
+                        cert_obj.to_dict(), provider))
+                responder = (
+                    service_controller.provider_wrapper.delete_certificate(
+                        service_controller._driver.providers[provider.lower()],
+                        cert_obj
+                    )
+                )
+                responders.append(responder)
         return responders
 
 
@@ -81,11 +83,12 @@ class SendNotificationTask(task.Task):
                     )
                 )
 
-        for n_driver in service_controller._driver.notification:
-            service_controller.notification_wrapper.send(
-                n_driver,
-                "Poppy Certificate Deleted",
-                notification_content)
+        if responders:
+            for n_driver in service_controller._driver.notification:
+                service_controller.notification_wrapper.send(
+                    n_driver,
+                    "Poppy Certificate Deleted",
+                    notification_content)
 
         return
 
@@ -98,11 +101,15 @@ class DeleteStorageSSLCertificateTask(task.Task):
         self.storage_controller = self.ssl_certificate_manager.storage
 
         try:
-            self.storage_controller.delete_certificate(
-                project_id,
-                domain_name,
-                cert_type
+            cert = self.storage_controller.get_certs_by_domain(
+                domain_name, project_id=project_id
             )
+            if cert:
+                self.storage_controller.delete_certificate(
+                    project_id,
+                    domain_name,
+                    cert_type
+                )
         except ValueError as e:
             LOG.exception(e)
 

@@ -235,8 +235,9 @@ class DeleteCertificatesForService(task.Task):
         kwargs = {
             'project_id': project_id,
             'context_dict': context_utils.get_current().to_dict(),
-            'flavor_id': service_obj.flavor_id,
-            'providers_list': service_obj.provider_details.keys()
+            'providers_list_json': json.dumps(
+                service_obj.provider_details.keys()
+            )
         }
 
         for domain in service_obj.domains:
@@ -244,13 +245,16 @@ class DeleteCertificatesForService(task.Task):
                 domain.protocol == 'https' and
                 domain.certificate in ['san', 'sni']
             ):
-                kwargs["domain_name"] = domain.domain
-                kwargs["cert_type"] = domain.certificate
-                kwargs["cert_details"] = storage_cert_obj.get_certs_by_domain(
+                cert_obj = storage_cert_obj.get_certs_by_domain(
                     domain.domain,
                     cert_type=domain.certificate
-                ).cert_details
-
+                )
+                kwargs["domain_name"] = domain.domain
+                kwargs["cert_type"] = domain.certificate
+                if cert_obj:
+                    kwargs["cert_obj_json"] = json.dumps(cert_obj.to_dict())
+                else:
+                    kwargs["cert_obj_json"] = json.dumps({})
                 LOG.info(
                     "Delete service submit task {0} cert delete "
                     "domain {1}.".format(
