@@ -20,10 +20,12 @@ try:
 except NameError:  # noqa  pragma: no cover
     from sets import Set as set  # noqa  pragma: no cover
 
+from oslo_config import cfg
 from oslo_log import log
 import pyrax.exceptions as exc
 
 from poppy.dns import base
+from poppy.provider.akamai import driver as a_driver
 
 LOG = log.getLogger(__name__)
 
@@ -418,6 +420,10 @@ class ServicesController(base.ServicesBase):
         """Update added domains."""
 
         # if no domains are added, return
+        sni_https_suffix = (
+            cfg.CONF[a_driver.AKAMAI_GROUP]
+            .akamai_https_access_url_suffix
+        )
         dns_details = {}
         if not added_domains:
             for responder in responders:
@@ -438,11 +444,18 @@ class ServicesController(base.ServicesBase):
                     domain_added = (link['rel'] == 'access_url' and
                                     link['domain'] in added_domains)
                     if domain_added:
-                        links[(
-                            link['domain'],
-                            link.get('certificate', None),
-                            link.get('old_operator_url', None)
-                        )] = link['href']
+                        if link.get('certificate') == 'sni':
+                            links[(
+                                link['domain'],
+                                link.get('certificate', None),
+                                link.get('old_operator_url', None)
+                            )] = '.'.join([link['href'], sni_https_suffix])
+                        else:
+                            links[(
+                                link['domain'],
+                                link.get('certificate', None),
+                                link.get('old_operator_url', None)
+                            )] = link['href']
 
         # create CNAME records for added domains
         try:
