@@ -952,48 +952,38 @@ class TestCertificates(base.TestCase):
             "flavor_id": "flavor_id",
             "domain_name": "www.abc.com",
             "cert_type": "sni",
-            "project_id": "project_id"
+            "project_id": "project_id",
+            "cert_details": {
+                "Akamai": {
+                    "cert_domain": "secured.sni.altcdn.com",
+                    "extra_info": {
+                        "status": "create_in_progress",
+                        "change_url": "/cps/v2/enrollments/12345/changes/2345",
+                        "created_at": "2018-05-02 16:11:55.671460",
+                        "sni_cert": "secured.sni.altcdn.com"
+                    }
+                }
+            }
         })
 
-        self.mock_sans_alternate.return_value = cert_obj.domain_name
+        self.mock_sans_alternate.return_value = []
 
         controller = certificates.CertificateController(self.driver)
-        controller.cert_info_storage.get_enrollment_id.return_value = 1234
+        controller.cps_api_base_url = 'http://akab-abc.com'
 
-        controller.cps_api_client.get.return_value = mock.Mock(
-            status_code=200,
-            text=json.dumps({
-                "csr": {
-                    "cn": "www.example.com",
-                    "c": "US",
-                    "st": "MA",
-                    "l": "Cambridge",
-                    "o": "Akamai",
-                    "ou": "WebEx",
-                    "sans": [
-                        "example.com",
-                        "test.example.com"
-                    ]
-                },
-                "pendingChanges": [
-                    "/cps/v2/enrollments/234/changes/10000"
-                ]
-            })
-        )
-        controller.cps_api_client.put.return_value = mock.Mock(
-            status_code=500,
-            text='INTERNAL SERVER ERROR'
+        controller.cps_api_client.delete.return_value = mock.Mock(
+            status_code=200
         )
 
         responder = controller.delete_certificate(cert_obj)
 
         self.assertEqual('www.abc.com', responder['Akamai']['cert_domain'])
         self.assertEqual(
-            'failed due to pending changes',
+            'deleted',
             responder['Akamai']['extra_info']['status']
         )
         self.assertEqual(
-            'Delete request for www.abc.com failed',
+            'Delete request for www.abc.com succeeded.',
             responder['Akamai']['extra_info']['reason']
         )
 

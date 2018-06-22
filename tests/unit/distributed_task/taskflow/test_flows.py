@@ -1054,6 +1054,7 @@ class TestFlowRuns(base.TestCase):
 
     def test_delete_ssl_certificate_normal(self):
         providers = ['cdn_provider']
+
         cert_obj = ssl_certificate.SSLCertificate(
             'cdn',
             'mytestsite.com',
@@ -1063,9 +1064,8 @@ class TestFlowRuns(base.TestCase):
             'cert_type': "san",
             'project_id': json.dumps(str(uuid.uuid4())),
             'domain_name': "mytestsite.com",
-            'cert_obj': json.dumps(cert_obj.to_dict()),
+            'cert_obj_json': cert_obj.to_dict(),
             'providers_list': json.dumps(providers),
-            'flavor_id': "premium",
             'context_dict': context_utils.RequestContext().to_dict()
         }
 
