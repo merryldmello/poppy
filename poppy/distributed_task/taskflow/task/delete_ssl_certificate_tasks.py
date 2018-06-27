@@ -12,6 +12,7 @@
 # implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
+import json
 
 from oslo_config import cfg
 from oslo_log import log
@@ -30,11 +31,17 @@ class DeleteProviderSSLCertificateTask(task.Task):
     default_provides = "responders"
 
     def execute(self, providers_list, domain_name, cert_type,
-                project_id, flavor_id):
+                project_id, cert_obj_json):
         service_controller = memoized_controllers.task_controllers('poppy')
 
+        cert_obj_json = json.loads(cert_obj_json)
+
+        flavor_id = cert_obj_json.get('flavor_id')
+        cert_details = cert_obj_json.get('cert_details')
+
         cert_obj = ssl_certificate.SSLCertificate(flavor_id, domain_name,
-                                                  cert_type, project_id)
+                                                  cert_type, project_id,
+                                                  cert_details)
 
         responders = []
         # try to delete all certificates from each provider
@@ -90,11 +97,15 @@ class DeleteStorageSSLCertificateTask(task.Task):
         self.storage_controller = self.ssl_certificate_manager.storage
 
         try:
-            self.storage_controller.delete_certificate(
-                project_id,
-                domain_name,
-                cert_type
+            cert = self.storage_controller.get_certs_by_domain(
+                domain_name, project_id=project_id
             )
+            if cert:
+                self.storage_controller.delete_certificate(
+                    project_id,
+                    domain_name,
+                    cert_type
+                )
         except ValueError as e:
             LOG.exception(e)
 

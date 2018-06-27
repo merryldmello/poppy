@@ -72,14 +72,17 @@ class SSLCertificateController(base.Controller, hooks.HookController):
             helpers.abort_with_message)
     )
     def delete(self, domain_name):
-        # For now we only support 'san' cert type
-        cert_type = pecan.request.GET.get('cert_type', 'san')
-
         certificate_controller = \
             self._driver.manager.ssl_certificate_controller
+
+        certificate_info_dict = json.loads(pecan.request.body.decode('utf-8'))
+
         try:
+            project_id = certificate_info_dict.get('project_id')
+            cert_type = certificate_info_dict.get('cert_type')
+
             certificate_controller.delete_ssl_certificate(
-                self.project_id, domain_name, cert_type
+                project_id, domain_name, cert_type
             )
         except ValueError as e:
             pecan.abort(400, detail='Delete ssl certificate failed. '

@@ -922,13 +922,25 @@ class TestCertificates(base.TestCase):
             responder['Akamai']['extra_info']['action']
         )
 
-    def test_cert_delete_domain_exists_on_sni_certs(self):
+    def test_cert_delete_sni_cert_pending_changes(self):
 
         cert_obj = ssl_certificate.load_from_json({
             "flavor_id": "flavor_id",
             "domain_name": "www.abc.com",
             "cert_type": "sni",
-            "project_id": "project_id"
+            "project_id": "project_id",
+            "cert_details": {
+                "Akamai": {
+                    "cert_domain": "secured1.sni1.altcdn.com",
+                    "extra_info": {
+                        "status": "create_in_progress",
+                        "change_url": "/cps/v2/enrollments/12345/changes/3418",
+                        "created_at": "2018-06-27 06:52:46.427044",
+                        "sni_cert": "secured1.sni1.altcdn.com",
+                        "action": "Waiting for customer domain validation "
+                    }
+                }
+            }
         })
 
         self.mock_sans_alternate.return_value = []
@@ -937,57 +949,6 @@ class TestCertificates(base.TestCase):
 
         responder = controller.delete_certificate(cert_obj)
 
-        self.assertEqual(
-            'failed',
-            responder['Akamai']['extra_info']['status']
-        )
-        self.assertEqual(
-            'Domain does not exist on any certificate ',
-            responder['Akamai']['extra_info']['reason']
-        )
-
-    def test_cert_delete_sni_cert_pending_changes(self):
-
-        cert_obj = ssl_certificate.load_from_json({
-            "flavor_id": "flavor_id",
-            "domain_name": "www.abc.com",
-            "cert_type": "sni",
-            "project_id": "project_id"
-        })
-
-        self.mock_sans_alternate.return_value = cert_obj.domain_name
-
-        controller = certificates.CertificateController(self.driver)
-        controller.cert_info_storage.get_enrollment_id.return_value = 1234
-
-        controller.cps_api_client.get.return_value = mock.Mock(
-            status_code=200,
-            text=json.dumps({
-                "csr": {
-                    "cn": "www.example.com",
-                    "c": "US",
-                    "st": "MA",
-                    "l": "Cambridge",
-                    "o": "Akamai",
-                    "ou": "WebEx",
-                    "sans": [
-                        "example.com",
-                        "test.example.com"
-                    ]
-                },
-                "pendingChanges": [
-                    "/cps/v2/enrollments/234/changes/10000"
-                ]
-            })
-        )
-        controller.cps_api_client.put.return_value = mock.Mock(
-            status_code=500,
-            text='INTERNAL SERVER ERROR'
-        )
-
-        responder = controller.delete_certificate(cert_obj)
-
-        self.assertEqual('www.abc.com', responder['Akamai']['cert_domain'])
         self.assertEqual(
             'failed due to pending changes',
             responder['Akamai']['extra_info']['status']

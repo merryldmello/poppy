@@ -565,6 +565,21 @@ class CertificateController(base.CertificateBase):
                 )
 
                 if found is False:
+                    # Checking for pending changes while deleting
+                    if (cert_obj.cert_details["Akamai"]
+                            ["extra_info"]["change_url"]):
+                        LOG.info("{0} has pending changes, skipping...".format(
+                            cert_obj.domain_name)
+                        )
+                        return self.responder.ssl_certificate_deleted(
+                            cert_obj.domain_name,
+                            {
+                                'status': 'failed due to pending changes',
+                                'reason': 'Delete request for {0} failed'
+                                    .format(cert_obj.domain_name)
+                            }
+                        )
+
                     return self.responder.ssl_certificate_deleted(
                         cert_obj.domain_name,
                         {
@@ -596,18 +611,6 @@ class CertificateController(base.CertificateBase):
                             enrollment_id, resp.text))
 
                 resp_json = json.loads(resp.text)
-                # check enrollment does not have any pending changes
-                if len(resp_json['pendingChanges']) > 0:
-                    LOG.info("{0} has pending changes, skipping...".format(
-                        found_cert))
-                    return self.responder.ssl_certificate_deleted(
-                        cert_obj.domain_name,
-                        {
-                            'status': 'failed due to pending changes',
-                            'reason': 'Delete request for {0} failed'
-                                .format(cert_obj.domain_name)
-                        }
-                    )
 
                 # remove domain name from sans
                 resp_json['csr']['sans'].remove(cert_obj.domain_name)

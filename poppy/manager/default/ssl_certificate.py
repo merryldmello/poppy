@@ -101,7 +101,7 @@ class DefaultSSLCertificateController(base.SSLCertificateController):
             'domain_name': domain_name,
             'cert_type': cert_type,
             'cert_obj_json': json.dumps(cert_obj.to_dict()),
-            'providers_list_json': json.dumps(providers),
+            'providers_list': providers,
             'context_dict': context_utils.get_current().to_dict()
         }
         self.distributed_task_controller.submit_task(
